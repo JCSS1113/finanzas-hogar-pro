@@ -1,15 +1,46 @@
 // ============================================
-// SCANNER DE TICKETS - OCR ESPACE
+// SCANNER DE TICKETS - TESSERACT.JS MEJORADO
 // ============================================
-// Este script usa OCR.space para leer tickets
-// API gratuita: 25,000 consultas/mes
+// 100% gratuito, sin límites de consultas
 // ============================================
 
-const OCR_API_KEY = 'K88975894788957'; // API key gratuita de OCR.space
+let diagnostico = {
+    imagenSeleccionada: false,
+    imagenValida: false,
+    tamano: 0,
+    tipoMIME: '',
+    ancho: 0,
+    alto: 0,
+    base64Length: 0,
+    peticionEnviada: false,
+    respuestaRecibida: false,
+    productosDetectados: 0,
+    jsonParseado: false,
+    productosMostrados: 0
+};
 
 document.getElementById('fotoInput').addEventListener('change', function(e) {
     const archivo = e.target.files[0];
     if (!archivo) return;
+
+    // Reiniciar diagnóstico
+    diagnostico = {
+        imagenSeleccionada: true,
+        imagenValida: false,
+        tamano: 0,
+        tipoMIME: '',
+        ancho: 0,
+        alto: 0,
+        base64Length: 0,
+        peticionEnviada: false,
+        respuestaRecibida: false,
+        productosDetectados: 0,
+        jsonParseado: false,
+        productosMostrados: 0
+    };
+
+    // Validar imagen
+    if (!validarImagen(archivo)) return;
 
     // Mostrar preview
     const reader = new FileReader();
@@ -20,6 +51,32 @@ document.getElementById('fotoInput').addEventListener('change', function(e) {
     reader.readAsDataURL(archivo);
 });
 
+function validarImagen(archivo) {
+    // Verificar tipo MIME
+    if (!archivo.type.startsWith('image/')) {
+        mostrarError('El archivo no es una imagen válida');
+        return false;
+    }
+
+    // Verificar tamaño (máx 10MB)
+    if (archivo.size > 10 * 1024 * 1024) {
+        mostrarError('La imagen es demasiado grande (máx 10MB)');
+        return false;
+    }
+
+    diagnostico.tamano = archivo.size;
+    diagnostico.tipoMIME = archivo.type;
+    diagnostico.imagenValida = true;
+
+    console.log('IMAGE DEBUG');
+    console.log('✓ Imagen seleccionada:', diagnostico.imagenSeleccionada);
+    console.log('✓ Imagen válida:', diagnostico.imagenValida);
+    console.log('✓ Tamaño:', (diagnostico.tamano / 1024).toFixed(2), 'KB');
+    console.log('✓ Tipo MIME:', diagnostico.tipoMIME);
+
+    return true;
+}
+
 async function procesarImagen(archivo) {
     const progreso = document.getElementById('progreso');
     const barra = document.getElementById('barra');
@@ -29,52 +86,93 @@ async function procesarImagen(archivo) {
     progreso.style.display = 'block';
     resultados.style.display = 'none';
     barra.style.width = '0%';
-    progresoTexto.textContent = 'Subiendo imagen...';
+    progresoTexto.textContent = 'Convirtiendo imagen...';
 
     try {
-        // Usar OCR.space API
-        const formData = new FormData();
-        formData.append('file', archivo);
-        formData.append('language', 'spa');
-        formData.append('isCreateSearchablePdf', 'false');
-        formData.append('isTable', 'true');
+        // Convertir a Base64
+        const base64 = await archivoABase64(archivo);
+        diagnostico.base64Length = base64.length;
 
-        barra.style.width = '30%';
-        progresoTexto.textContent = 'Analizando con OCR...';
+        console.log('✓ Base64 length:', diagnostico.base64Length);
 
-        const response = await fetch('https://api.ocr.space/parse/image', {
-            method: 'POST',
-            headers: {
-                'apikey': OCR_API_KEY,
-            },
-            body: formData
+        // Obtener dimensiones
+        const dimensiones = await obtenerDimensiones(base64);
+        diagnostico.ancho = dimensiones.ancho;
+        diagnostico.alto = dimensiones.alto;
+
+        console.log('✓ Ancho:', diagnostico.ancho);
+        console.log('✓ Alto:', diagnostico.alto);
+
+        barra.style.width = '20%';
+        progresoTexto.textContent = 'Iniciando OCR...';
+
+        // Procesar con Tesseract.js
+        diagnostico.peticionEnviada = true;
+        console.log('✓ Petición enviada:', diagnostico.peticionEnviada);
+
+        const resultado = await Tesseract.recognize(base64, 'spa', {
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    const p = Math.round(m.progress * 100);
+                    barra.style.width = (20 + p * 0.6) + '%';
+                    progresoTexto.textContent = `Leyendo texto... ${p}%`;
+                }
+            }
         });
 
-        barra.style.width = '70%';
-        progresoTexto.textContent = 'Procesando resultados...';
+        diagnostico.respuestaRecibida = true;
+        console.log('✓ Respuesta recibida:', diagnostico.respuestaRecibida);
 
-        const data = await response.json();
+        const texto = resultado.data.text;
+        console.log('Texto detectado:', texto);
 
-        if (data.ParsedResults && data.ParsedResults.length > 0) {
-            const texto = data.ParsedResults[0].ParsedText;
-            const productos = extraerProductos(texto);
-            const total = buscarTotal(texto);
+        // Extraer productos
+        const productos = extraerProductos(texto);
+        diagnostico.productosDetectados = productos.length;
+        console.log('✓ Productos detectados:', diagnostico.productosDetectados);
 
-            mostrarResultados(productos, total);
-        } else {
-            alert('No se pudo leer el ticket. Intenta con otra foto más clara.');
-        }
+        const total = buscarTotal(texto);
+
+        // Mostrar resultados
+        mostrarResultados(productos, total);
+        diagnostico.productosMostrados = productos.length;
+        diagnostico.jsonParseado = true;
 
         barra.style.width = '100%';
         progresoTexto.textContent = 'Completado!';
         progreso.style.display = 'none';
         resultados.style.display = 'block';
 
+        console.log('✓ JSON parseado:', diagnostico.jsonParseado);
+        console.log('✓ Productos mostrados:', diagnostico.productosMostrados);
+
     } catch (error) {
         console.error('Error:', error);
-        progresoTexto.textContent = 'Error al procesar. Intenta de nuevo.';
+        progresoTexto.textContent = 'Error: ' + error.message;
         barra.style.width = '0%';
     }
+}
+
+function archivoABase64(archivo) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(archivo);
+    });
+}
+
+function obtenerDimensiones(base64) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            resolve({ ancho: img.width, alto: img.height });
+        };
+        img.src = 'data:image/jpeg;base64,' + base64;
+    });
 }
 
 function extraerProductos(texto) {
@@ -109,7 +207,6 @@ function extraerProductos(texto) {
 
             // Validar que el nombre sea razonable
             if (nombre.length > 2 && nombre.length < 100 && precio > 0 && precio < 10000) {
-                // Determinar si el dato es confiable
                 const esConfiable = validarProducto(nombre, precio);
                 
                 productos.push({
@@ -125,12 +222,6 @@ function extraerProductos(texto) {
 }
 
 function validarProducto(nombre, precio) {
-    // Un producto es confiable si:
-    // 1. El nombre tiene al menos 3 caracteres
-    // 2. El precio es razonable (entre 0.01 y 1000)
-    // 3. El nombre no es solo números
-    // 4. El nombre no contiene solo caracteres especiales
-    
     if (nombre.length < 3) return false;
     if (precio < 0.01 || precio > 1000) return false;
     if (/^\d+$/.test(nombre)) return false;
@@ -153,7 +244,6 @@ function buscarTotal(texto) {
         }
     }
 
-    // Buscar último número con decimales
     const lineas = texto.split('\n');
     for (let i = lineas.length - 1; i >= 0; i--) {
         const match = lineas[i].match(/(\d+[.,]\d{2})/);
@@ -192,4 +282,9 @@ function mostrarResultados(productos, total) {
         <span id="total-label">TOTAL</span>
         <span id="total-valor">$${total.toFixed(2)}</span>
     `;
+}
+
+function mostrarError(mensaje) {
+    alert(mensaje);
+    console.error('ERROR:', mensaje);
 }
