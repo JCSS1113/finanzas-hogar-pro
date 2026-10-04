@@ -89,11 +89,7 @@ function actualizarHistorial() {
     const lista = document.getElementById('transactionList');
 
     if (filtradas.length === 0) {
-        lista.innerHTML = `
-            <div class="empty-state">
-                <p>No hay gastos registrados</p>
-            </div>
-        `;
+        lista.innerHTML = '<div class="empty-state"><p>No hay gastos registrados</p></div>';
         return;
     }
 
@@ -103,7 +99,7 @@ function actualizarHistorial() {
                 <h4>${t.descripcion}</h4>
                 <small>${getCategoriaNombre(t.categoria)}${t.tienda ? ' - ' + t.tienda : ''} - ${formatDate(t.fecha)}</small>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div>
                 <span class="transaction-amount">-${formatCurrency(t.monto)}</span>
                 <button class="btn btn-danger" onclick="eliminarTransaccion(${t.id})">X</button>
             </div>
@@ -139,12 +135,7 @@ function actualizarGraficos() {
     container.innerHTML = categorias.map(cat => {
         const monto = gastosPorCategoria[cat];
         const altura = (monto / maxMonto) * 180;
-        return `
-            <div class="chart-bar" style="height: ${altura}px;">
-                <span class="value">${formatCurrency(monto)}</span>
-                <span>${getCategoriaNombre(cat)}</span>
-            </div>
-        `;
+        return `<div class="chart-bar" style="height: ${altura}px;"><span class="value">${formatCurrency(monto)}</span><span>${getCategoriaNombre(cat)}</span></div>`;
     }).join('');
 }
 
@@ -154,7 +145,7 @@ function actualizarListaPresupuestos() {
     const meses = Object.keys(presupuestos).sort().reverse();
 
     if (meses.length === 0) {
-        container.innerHTML = '<p style="color: #888;">No hay presupuestos configurados</p>';
+        container.innerHTML = '<p>No hay presupuestos configurados</p>';
         return;
     }
 
@@ -170,25 +161,7 @@ function actualizarListaPresupuestos() {
         const porcentaje = presupuesto > 0 ? (gastosMes / presupuesto) * 100 : 0;
         const color = porcentaje > 100 ? '#dc3545' : porcentaje > 80 ? '#ffc107' : '#28a745';
 
-        return `
-            <div style="padding: 16px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong style="text-transform: capitalize;">${nombreMes}</strong>
-                        <div style="color: #666; font-size: 0.9em; margin-top: 4px;">
-                            Presupuesto: ${formatCurrency(presupuesto)} - Gastado: ${formatCurrency(gastosMes)}
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 1.3em; font-weight: bold; color: ${color};">${porcentaje.toFixed(0)}%</div>
-                        <button class="btn btn-danger" onclick="eliminarPresupuesto('${mes}')" style="margin-top: 4px;">X</button>
-                    </div>
-                </div>
-                <div style="width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 12px; overflow: hidden;">
-                    <div style="width: ${Math.min(porcentaje, 100)}%; height: 100%; background: ${color}; border-radius: 4px;"></div>
-                </div>
-            </div>
-        `;
+        return `<div class="budget-item"><div><strong>${nombreMes}</strong><br>Presupuesto: ${formatCurrency(presupuesto)} - Gastado: ${formatCurrency(gastosMes)}</div><div><strong>${porcentaje.toFixed(0)}%</strong><br><button class="btn btn-danger" onclick="eliminarPresupuesto('${mes}')">X</button></div></div>`;
     }).join('');
 }
 

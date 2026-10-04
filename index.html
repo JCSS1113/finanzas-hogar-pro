@@ -13,7 +13,6 @@
             <p>Controla tus gastos y presupuesto</p>
         </header>
 
-        <!-- Resumen -->
         <div class="card">
             <div class="summary-grid">
                 <div class="summary-item gastos">
@@ -24,14 +23,13 @@
                     <h3>Presupuesto</h3>
                     <div class="amount" id="presupuestoMensual">$0.00</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" id="presupuestoProgress" style="width: 0%"></div>
+                        <div class="progress-fill" id="presupuestoProgress"></div>
                     </div>
                 </div>
             </div>
             <div id="budgetAlert"></div>
         </div>
 
-        <!-- Pestañas -->
         <div class="card">
             <div class="tabs">
                 <button class="tab active" data-tab="agregar">Agregar Gasto</button>
@@ -40,9 +38,8 @@
                 <button class="tab" data-tab="presupuesto">Presupuesto</button>
             </div>
 
-            <!-- Agregar Gasto -->
             <div class="tab-content active" id="agregar">
-                <h2 style="margin-bottom: 16px; color: #333;">Nuevo Gasto</h2>
+                <h2>Nuevo Gasto</h2>
                 <form id="transactionForm">
                     <div class="form-group">
                         <label>Descripción</label>
@@ -75,15 +72,12 @@
                         <label>Fecha</label>
                         <input type="date" id="fecha" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        Guardar Gasto
-                    </button>
+                    <button type="submit" class="btn btn-primary">Guardar Gasto</button>
                 </form>
             </div>
 
-            <!-- Historial -->
             <div class="tab-content" id="historial">
-                <h2 style="margin-bottom: 16px; color: #333;">Historial de Gastos</h2>
+                <h2>Historial de Gastos</h2>
                 <div class="filter-row">
                     <select id="filtroCategoria">
                         <option value="todas">Todas las categorías</option>
@@ -99,9 +93,8 @@
                 </div>
             </div>
 
-            <!-- Gráficos -->
             <div class="tab-content" id="graficos">
-                <h2 style="margin-bottom: 16px; color: #333;">Gastos por Categoría</h2>
+                <h2>Gastos por Categoría</h2>
                 <div class="chart-container" id="chartContainer">
                     <div class="empty-state">
                         <p>No hay datos para mostrar</p>
@@ -109,9 +102,8 @@
                 </div>
             </div>
 
-            <!-- Presupuesto -->
             <div class="tab-content" id="presupuesto">
-                <h2 style="margin-bottom: 16px; color: #333;">Configurar Presupuesto</h2>
+                <h2>Configurar Presupuesto</h2>
                 <form id="budgetForm">
                     <div class="form-group">
                         <label>Presupuesto mensual ($)</label>
@@ -121,15 +113,10 @@
                         <label>Mes</label>
                         <input type="month" id="mesPresupuesto">
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        Guardar Presupuesto
-                    </button>
+                    <button type="submit" class="btn btn-primary">Guardar Presupuesto</button>
                 </form>
 
-                <div style="margin-top: 24px;">
-                    <h3 style="margin-bottom: 12px; color: #333;">Presupuestos guardados:</h3>
-                    <div id="budgetList"></div>
-                </div>
+                <div id="budgetList"></div>
             </div>
         </div>
     </div>
