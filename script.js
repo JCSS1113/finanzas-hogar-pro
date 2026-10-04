@@ -6,6 +6,14 @@
 // ============================================
 
 // La API key se carga desde config.js (archivo local, no subido a GitHub)
+// Asegúrate de que config.js exista y contenga: const GEMINI_API_KEY = 'tu_key';
+
+// Verificar que la API key esté definida
+if (typeof GEMINI_API_KEY === 'undefined') {
+    console.error('ERROR: GEMINI_API_KEY no está definida. Crea el archivo config.js con tu API key.');
+    alert('Error: No se encontró la API key. Crea el archivo config.js');
+    return;
+}
 
 document.getElementById('fotoInput').addEventListener('change', function(e) {
     const archivo = e.target.files[0];
