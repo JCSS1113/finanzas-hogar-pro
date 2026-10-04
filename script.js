@@ -1,4 +1,10 @@
-// Configuración de OCR.space (API gratuita)
+// ============================================
+// SCANNER DE TICKETS - OCR ESPACE
+// ============================================
+// Este script usa OCR.space para leer tickets
+// API gratuita: 25,000 consultas/mes
+// ============================================
+
 const OCR_API_KEY = 'K88975894788957'; // API key gratuita de OCR.space
 
 document.getElementById('fotoInput').addEventListener('change', function(e) {
