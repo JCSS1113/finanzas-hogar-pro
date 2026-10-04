@@ -1,262 +1,128 @@
-// ==================== DATOS ====================
-let transacciones = JSON.parse(localStorage.getItem('finanzasHogar')) || [];
-let presupuestos = JSON.parse(localStorage.getItem('presupuestosHogar')) || {};
+document.getElementById('fotoInput').addEventListener('change', function(e) {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
 
-// ==================== FUNCIONES ====================
-function guardarDatos() {
-    localStorage.setItem('finanzasHogar', JSON.stringify(transacciones));
-}
-
-function guardarPresupuestos() {
-    localStorage.setItem('presupuestosHogar', JSON.stringify(presupuestos));
-}
-
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN'
-    }).format(amount);
-}
-
-function getCategoriaNombre(cat) {
-    const categorias = {
-        alimentacion: 'Alimentación',
-        vivienda: 'Vivienda',
-        servicios: 'Servicios',
-        transporte: 'Transporte',
-        salud: 'Salud',
-        educacion: 'Educación',
-        ocio: 'Ocio',
-        ropa: 'Ropa',
-        aseo: 'Aseo',
-        otros: 'Otros'
+    // Mostrar preview
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        document.getElementById('preview').innerHTML = `<img src="${event.target.result}" alt="Ticket">`;
+        procesarImagen(event.target.result);
     };
-    return categorias[cat] || cat;
+    reader.readAsDataURL(archivo);
+});
+
+async function procesarImagen(imagenUrl) {
+    const progreso = document.getElementById('progreso');
+    const barra = document.getElementById('barra');
+    const progresoTexto = document.getElementById('progresoTexto');
+    const resultados = document.getElementById('resultados');
+
+    progreso.style.display = 'block';
+    resultados.style.display = 'none';
+    barra.style.width = '0%';
+
+    try {
+        const resultado = await Tesseract.recognize(imagenUrl, 'spa', {
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    const p = Math.round(m.progress * 100);
+                    barra.style.width = p + '%';
+                    progresoTexto.textContent = `Leyendo texto... ${p}%`;
+                }
+            }
+        });
+
+        progresoTexto.textContent = 'Analizando productos...';
+        barra.style.width = '100%';
+
+        const texto = resultado.data.text;
+        const productos = extraerProductos(texto);
+        const total = buscarTotal(texto);
+
+        mostrarResultados(productos, total);
+
+        progreso.style.display = 'none';
+        resultados.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error:', error);
+        progresoTexto.textContent = 'Error al procesar. Intenta de nuevo.';
+        barra.style.width = '0%';
+    }
 }
 
-function formatDate(fecha) {
-    const opciones = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(fecha + 'T00:00:00').toLocaleDateString('es-MX', opciones);
-}
+function extraerProductos(texto) {
+    const lineas = texto.split('\n').filter(l => l.trim());
+    const productos = [];
 
-// ==================== RESUMEN ====================
-function actualizarResumen() {
-    const gastos = transacciones.reduce((sum, t) => sum + t.monto, 0);
-    document.getElementById('totalGastos').textContent = formatCurrency(gastos);
+    for (const linea of lineas) {
+        const lineaLimpia = linea.trim();
+        if (lineaLimpia.length < 3) continue;
 
-    const mesActual = new Date().toISOString().substring(0, 7);
-    const presupuesto = presupuestos[mesActual] || 0;
-    document.getElementById('presupuestoMensual').textContent = formatCurrency(presupuesto);
+        // Buscar precio al final: 1.50 / 1,50 / 1.50€ / 1,50€
+        const match = lineaLimpia.match(/(\d+[.,]\d{2})\s*€?$/);
+        if (match) {
+            const precio = parseFloat(match[1].replace(',', '.'));
+            const nombre = lineaLimpia.replace(match[0], '').trim();
 
-    if (presupuesto > 0) {
-        const porcentaje = Math.min((gastos / presupuesto) * 100, 100);
-        document.getElementById('presupuestoProgress').style.width = porcentaje + '%';
-
-        const alertDiv = document.getElementById('budgetAlert');
-        if (gastos > presupuesto) {
-            alertDiv.className = 'budget-alert danger';
-            alertDiv.innerHTML = `<strong>Te pasaste:</strong> Gastaste ${formatCurrency(gastos)} de ${formatCurrency(presupuesto)}`;
-        } else if (porcentaje > 80) {
-            alertDiv.className = 'budget-alert warning';
-            alertDiv.innerHTML = `<strong>Cuidado:</strong> Ya usaste el ${porcentaje.toFixed(0)}% de tu presupuesto`;
-        } else {
-            alertDiv.className = 'budget-alert success';
-            alertDiv.innerHTML = `<strong>Bien:</strong> Llevas el ${porcentaje.toFixed(0)}% de tu presupuesto`;
+            if (nombre.length > 2 && precio > 0 && precio < 10000) {
+                productos.push({
+                    nombre: nombre,
+                    precio: precio
+                });
+            }
         }
+    }
+
+    return productos.slice(0, 50);
+}
+
+function buscarTotal(texto) {
+    const patrones = [
+        /total[:\s]*(\d+[.,]\d{2})/i,
+        /importe[:\s]*(\d+[.,]\d{2})/i,
+        /a\s*pagar[:\s]*(\d+[.,]\d{2})/i,
+    ];
+
+    for (const patron of patrones) {
+        const match = texto.match(patron);
+        if (match) {
+            return parseFloat(match[1].replace(',', '.'));
+        }
+    }
+
+    // Buscar último número con decimales
+    const lineas = texto.split('\n');
+    for (let i = lineas.length - 1; i >= 0; i--) {
+        const match = lineas[i].match(/(\d+[.,]\d{2})/);
+        if (match) {
+            const valor = parseFloat(match[1].replace(',', '.'));
+            if (valor > 0 && valor < 10000) {
+                return valor;
+            }
+        }
+    }
+
+    return 0;
+}
+
+function mostrarResultados(productos, total) {
+    const lista = document.getElementById('listaProductos');
+    const totalDiv = document.getElementById('total');
+
+    if (productos.length === 0) {
+        lista.innerHTML = '<p style="color: #666; text-align: center;">No se detectaron productos</p>';
     } else {
-        document.getElementById('presupuestoProgress').style.width = '0%';
-        document.getElementById('budgetAlert').className = 'budget-alert';
-        document.getElementById('budgetAlert').innerHTML = '';
-    }
-}
-
-// ==================== HISTORIAL ====================
-function actualizarHistorial() {
-    const filtroCategoria = document.getElementById('filtroCategoria').value;
-    const filtroMes = document.getElementById('filtroMes').value;
-
-    let filtradas = transacciones.filter(t => {
-        if (filtroCategoria !== 'todas' && t.categoria !== filtroCategoria) return false;
-        if (filtroMes !== 'todos') {
-            const mes = t.fecha.substring(0, 7);
-            if (mes !== filtroMes) return false;
-        }
-        return true;
-    });
-
-    filtradas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-    const lista = document.getElementById('transactionList');
-
-    if (filtradas.length === 0) {
-        lista.innerHTML = '<div class="empty-state"><p>No hay gastos registrados</p></div>';
-        return;
-    }
-
-    lista.innerHTML = filtradas.map(t => `
-        <div class="transaction-item">
-            <div class="transaction-info">
-                <h4>${t.descripcion}</h4>
-                <small>${getCategoriaNombre(t.categoria)}${t.tienda ? ' - ' + t.tienda : ''} - ${formatDate(t.fecha)}</small>
+        lista.innerHTML = productos.map(p => `
+            <div class="producto">
+                <span class="producto-nombre">${p.nombre}</span>
+                <span class="producto-precio">$${p.precio.toFixed(2)}</span>
             </div>
-            <div>
-                <span class="transaction-amount">-${formatCurrency(t.monto)}</span>
-                <button class="btn btn-danger" onclick="eliminarTransaccion(${t.id})">X</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function eliminarTransaccion(id) {
-    if (confirm('Eliminar este gasto?')) {
-        transacciones = transacciones.filter(t => t.id !== id);
-        guardarDatos();
-        actualizarTodo();
-    }
-}
-
-// ==================== GRÁFICOS ====================
-function actualizarGraficos() {
-    const gastosPorCategoria = {};
-    transacciones.forEach(t => {
-        gastosPorCategoria[t.categoria] = (gastosPorCategoria[t.categoria] || 0) + t.monto;
-    });
-
-    const categorias = Object.keys(gastosPorCategoria);
-    const container = document.getElementById('chartContainer');
-
-    if (categorias.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>No hay datos para mostrar</p></div>';
-        return;
+        `).join('');
     }
 
-    const maxMonto = Math.max(...Object.values(gastosPorCategoria));
-
-    container.innerHTML = categorias.map(cat => {
-        const monto = gastosPorCategoria[cat];
-        const altura = (monto / maxMonto) * 180;
-        return `<div class="chart-bar" style="height: ${altura}px;"><span class="value">${formatCurrency(monto)}</span><span>${getCategoriaNombre(cat)}</span></div>`;
-    }).join('');
+    totalDiv.innerHTML = `
+        <span id="total-label">TOTAL</span>
+        <span id="total-valor">$${total.toFixed(2)}</span>
+    `;
 }
-
-// ==================== PRESUPUESTO ====================
-function actualizarListaPresupuestos() {
-    const container = document.getElementById('budgetList');
-    const meses = Object.keys(presupuestos).sort().reverse();
-
-    if (meses.length === 0) {
-        container.innerHTML = '<p>No hay presupuestos configurados</p>';
-        return;
-    }
-
-    container.innerHTML = meses.map(mes => {
-        const [year, month] = mes.split('-');
-        const nombreMes = new Date(year, month - 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-        const presupuesto = presupuestos[mes];
-
-        const gastosMes = transacciones
-            .filter(t => t.fecha.startsWith(mes))
-            .reduce((sum, t) => sum + t.monto, 0);
-
-        const porcentaje = presupuesto > 0 ? (gastosMes / presupuesto) * 100 : 0;
-        const color = porcentaje > 100 ? '#dc3545' : porcentaje > 80 ? '#ffc107' : '#28a745';
-
-        return `<div class="budget-item"><div><strong>${nombreMes}</strong><br>Presupuesto: ${formatCurrency(presupuesto)} - Gastado: ${formatCurrency(gastosMes)}</div><div><strong>${porcentaje.toFixed(0)}%</strong><br><button class="btn btn-danger" onclick="eliminarPresupuesto('${mes}')">X</button></div></div>`;
-    }).join('');
-}
-
-function eliminarPresupuesto(mes) {
-    if (confirm('Eliminar este presupuesto?')) {
-        delete presupuestos[mes];
-        guardarPresupuestos();
-        actualizarTodo();
-    }
-}
-
-// ==================== FILTROS ====================
-function actualizarFiltros() {
-    const categorias = [...new Set(transacciones.map(t => t.categoria))];
-    const selectCategoria = document.getElementById('filtroCategoria');
-    selectCategoria.innerHTML = '<option value="todas">Todas las categorías</option>' +
-        categorias.map(c => `<option value="${c}">${getCategoriaNombre(c)}</option>`).join('');
-
-    const meses = [...new Set(transacciones.map(t => t.fecha.substring(0, 7)))].sort().reverse();
-    const selectMes = document.getElementById('filtroMes');
-    selectMes.innerHTML = '<option value="todos">Todos los meses</option>' +
-        meses.map(m => {
-            const [year, month] = m.split('-');
-            const nombreMes = new Date(year, month - 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-            return `<option value="${m}">${nombreMes}</option>`;
-        }).join('');
-}
-
-// ==================== EVENTOS ====================
-document.getElementById('transactionForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const nuevaTransaccion = {
-        id: Date.now(),
-        descripcion: document.getElementById('descripcion').value,
-        monto: parseFloat(document.getElementById('monto').value),
-        categoria: document.getElementById('categoria').value,
-        tienda: document.getElementById('tienda').value,
-        fecha: document.getElementById('fecha').value
-    };
-
-    transacciones.push(nuevaTransaccion);
-    guardarDatos();
-    actualizarTodo();
-
-    this.reset();
-    document.getElementById('fecha').valueAsDate = new Date();
-
-    alert('Gasto guardado!');
-});
-
-document.getElementById('budgetForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const presupuesto = parseFloat(document.getElementById('presupuestoInput').value);
-    const mes = document.getElementById('mesPresupuesto').value;
-
-    if (!mes || presupuesto <= 0) {
-        alert('Ingresa un presupuesto válido y selecciona un mes');
-        return;
-    }
-
-    presupuestos[mes] = presupuesto;
-    guardarPresupuestos();
-    actualizarTodo();
-
-    this.reset();
-    document.getElementById('mesPresupuesto').value = new Date().toISOString().substring(0, 7);
-
-    alert('Presupuesto guardado!');
-});
-
-// Pestañas
-document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', function() {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById(this.dataset.tab).classList.add('active');
-    });
-});
-
-// Filtros
-document.getElementById('filtroCategoria').addEventListener('change', actualizarHistorial);
-document.getElementById('filtroMes').addEventListener('change', actualizarHistorial);
-
-// ==================== INICIALIZAR ====================
-function actualizarTodo() {
-    actualizarResumen();
-    actualizarHistorial();
-    actualizarGraficos();
-    actualizarFiltros();
-    actualizarListaPresupuestos();
-}
-
-document.getElementById('fecha').valueAsDate = new Date();
-document.getElementById('mesPresupuesto').value = new Date().toISOString().substring(0, 7);
-actualizarTodo();

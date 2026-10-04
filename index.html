@@ -3,121 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanzas del Hogar</title>
+    <title>Scanner de Tickets</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Finanzas del Hogar</h1>
-            <p>Controla tus gastos y presupuesto</p>
+            <h1>Scanner de Tickets</h1>
+            <p>Toma una foto y extrae los productos</p>
         </header>
 
         <div class="card">
-            <div class="summary-grid">
-                <div class="summary-item gastos">
-                    <h3>Gastos del mes</h3>
-                    <div class="amount" id="totalGastos">$0.00</div>
-                </div>
-                <div class="summary-item presupuesto">
-                    <h3>Presupuesto</h3>
-                    <div class="amount" id="presupuestoMensual">$0.00</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="presupuestoProgress"></div>
-                    </div>
+            <input type="file" id="fotoInput" accept="image/*" capture="environment" style="display: none;">
+            <button class="btn-camara" onclick="document.getElementById('fotoInput').click()">
+                Tomar Foto
+            </button>
+            
+            <div id="preview"></div>
+            
+            <div id="progreso" style="display: none;">
+                <p id="progresoTexto">Procesando...</p>
+                <div class="barra-progreso">
+                    <div id="barra"></div>
                 </div>
             </div>
-            <div id="budgetAlert"></div>
         </div>
 
-        <div class="card">
-            <div class="tabs">
-                <button class="tab active" data-tab="agregar">Agregar Gasto</button>
-                <button class="tab" data-tab="historial">Historial</button>
-                <button class="tab" data-tab="graficos">Gráficos</button>
-                <button class="tab" data-tab="presupuesto">Presupuesto</button>
-            </div>
-
-            <div class="tab-content active" id="agregar">
-                <h2>Nuevo Gasto</h2>
-                <form id="transactionForm">
-                    <div class="form-group">
-                        <label>Descripción</label>
-                        <input type="text" id="descripcion" placeholder="Ej: Compra del supermercado" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Monto ($)</label>
-                        <input type="number" id="monto" step="0.01" min="0.01" placeholder="0.00" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Categoría</label>
-                        <select id="categoria" required>
-                            <option value="alimentacion">Alimentación</option>
-                            <option value="vivienda">Vivienda</option>
-                            <option value="servicios">Servicios</option>
-                            <option value="transporte">Transporte</option>
-                            <option value="salud">Salud</option>
-                            <option value="educacion">Educación</option>
-                            <option value="ocio">Ocio</option>
-                            <option value="ropa">Ropa</option>
-                            <option value="aseo">Aseo</option>
-                            <option value="otros">Otros</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Tienda (opcional)</label>
-                        <input type="text" id="tienda" placeholder="Ej: Mercadona">
-                    </div>
-                    <div class="form-group">
-                        <label>Fecha</label>
-                        <input type="date" id="fecha" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Guardar Gasto</button>
-                </form>
-            </div>
-
-            <div class="tab-content" id="historial">
-                <h2>Historial de Gastos</h2>
-                <div class="filter-row">
-                    <select id="filtroCategoria">
-                        <option value="todas">Todas las categorías</option>
-                    </select>
-                    <select id="filtroMes">
-                        <option value="todos">Todos los meses</option>
-                    </select>
-                </div>
-                <div class="transaction-list" id="transactionList">
-                    <div class="empty-state">
-                        <p>No hay gastos registrados</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="tab-content" id="graficos">
-                <h2>Gastos por Categoría</h2>
-                <div class="chart-container" id="chartContainer">
-                    <div class="empty-state">
-                        <p>No hay datos para mostrar</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="tab-content" id="presupuesto">
-                <h2>Configurar Presupuesto</h2>
-                <form id="budgetForm">
-                    <div class="form-group">
-                        <label>Presupuesto mensual ($)</label>
-                        <input type="number" id="presupuestoInput" step="0.01" min="0" placeholder="Ej: 2000">
-                    </div>
-                    <div class="form-group">
-                        <label>Mes</label>
-                        <input type="month" id="mesPresupuesto">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Guardar Presupuesto</button>
-                </form>
-
-                <div id="budgetList"></div>
-            </div>
+        <div class="card" id="resultados" style="display: none;">
+            <h2>Productos Detectados</h2>
+            <div id="listaProductos"></div>
+            <div id="total"></div>
         </div>
     </div>
 
