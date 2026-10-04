@@ -1,53 +1,156 @@
+let conversacion = [];
+let estado = 'inicio';
+let productosDetectados = null;
+let totalDetectado = 0;
+
+// Iniciar conversación
+window.onload = function() {
+    agregarMensaje('bot', 'Hola! Soy tu asistente de gastos. Puedo ayudarte a registrar tus compras de forma rápida.');
+    setTimeout(() => {
+        agregarMensaje('bot', 'Toma una foto de tu ticket y yo me encargo de extraer los productos y precios por ti.');
+        mostrarOpciones(['Ayuda', 'Empezar']);
+    }, 500);
+};
+
+function agregarMensaje(tipo, texto, extra = null) {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = `mensaje mensaje-${tipo}`;
+    
+    if (tipo === 'bot' && extra === 'productos') {
+        div.classList.add('mensaje-productos');
+        div.innerHTML = texto;
+    } else {
+        div.textContent = texto;
+    }
+    
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function mostrarOpciones(opciones) {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'mensaje mensaje-bot';
+    div.innerHTML = '<div class="opciones">' + 
+        opciones.map(o => `<span class="opcion" onclick="seleccionarOpcion('${o}')">${o}</span>`).join('') + 
+        '</div>';
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function seleccionarOpcion(opcion) {
+    agregarMensaje('user', opcion);
+    
+    if (opcion === 'Ayuda') {
+        agregarMensaje('bot', 'Simplemente toma una foto de tu ticket. Yo leeré el texto, encontraré los productos y te mostraré la lista con precios.');
+        mostrarOpciones(['Empezar', 'Cancelar']);
+    } else if (opcion === 'Empezar') {
+        agregarMensaje('bot', 'Perfecto! Toma la foto de tu ticket cuando estés listo.');
+    } else if (opcion === 'Cancelar') {
+        agregarMensaje('bot', 'No hay problema. Cuando quieras registrar un gasto, solo toma la foto.');
+        mostrarOpciones(['Empezar']);
+    } else if (opcion === 'Guardar') {
+        guardarGasto();
+    } else if (opcion === 'Otro ticket') {
+        agregarMensaje('bot', 'Toma otra foto cuando quieras.');
+    }
+}
+
+function handleKeyPress(e) {
+    if (e.key === 'Enter') {
+        enviarMensaje();
+    }
+}
+
+function enviarMensaje() {
+    const input = document.getElementById('mensaje');
+    const texto = input.value.trim();
+    if (!texto) return;
+    
+    agregarMensaje('user', texto);
+    input.value = '';
+    
+    // Responder según el estado
+    if (estado === 'esperando_categoria') {
+        procesarCategoria(texto);
+    } else if (estado === 'esperando_nombre') {
+        procesarNombre(texto);
+    } else {
+        agregarMensaje('bot', 'Puedes tomar una foto de tu ticket o escribirme si necesitas ayuda.');
+        mostrarOpciones(['Ayuda', 'Empezar']);
+    }
+}
+
 document.getElementById('fotoInput').addEventListener('change', function(e) {
     const archivo = e.target.files[0];
     if (!archivo) return;
 
-    // Mostrar preview
     const reader = new FileReader();
     reader.onload = function(event) {
-        document.getElementById('preview').innerHTML = `<img src="${event.target.result}" alt="Ticket">`;
-        procesarImagen(event.target.result);
+        const imagenUrl = event.target.result;
+        agregarMensaje('user', '', 'imagen');
+        const chat = document.getElementById('chat');
+        const mensajes = chat.querySelectorAll('.mensaje-user');
+        const ultimoMensaje = mensajes[mensajes.length - 1];
+        ultimoMensaje.innerHTML = `<img src="${imagenUrl}" class="imagen-chat" alt="Ticket">`;
+        
+        procesarImagen(imagenUrl);
     };
     reader.readAsDataURL(archivo);
 });
 
 async function procesarImagen(imagenUrl) {
-    const progreso = document.getElementById('progreso');
-    const barra = document.getElementById('barra');
-    const progresoTexto = document.getElementById('progresoTexto');
-    const resultados = document.getElementById('resultados');
-
-    progreso.style.display = 'block';
-    resultados.style.display = 'none';
-    barra.style.width = '0%';
+    // Mostrar indicador de procesamiento
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'mensaje mensaje-bot';
+    div.id = 'procesando';
+    div.innerHTML = `
+        <div class="procesando">
+            <div class="spinner"></div>
+            <span>Analizando tu ticket...</span>
+        </div>
+        <div class="barra-progreso">
+            <div class="barra-relleno" id="barraProgreso"></div>
+        </div>
+    `;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
 
     try {
         const resultado = await Tesseract.recognize(imagenUrl, 'spa', {
             logger: m => {
                 if (m.status === 'recognizing text') {
-                    const p = Math.round(m.progress * 100);
-                    barra.style.width = p + '%';
-                    progresoTexto.textContent = `Leyendo texto... ${p}%`;
+                    const barra = document.getElementById('barraProgreso');
+                    if (barra) {
+                        barra.style.width = Math.round(m.progress * 100) + '%';
+                    }
                 }
             }
         });
 
-        progresoTexto.textContent = 'Analizando productos...';
-        barra.style.width = '100%';
-
         const texto = resultado.data.text;
-        const productos = extraerProductos(texto);
-        const total = buscarTotal(texto);
+        productosDetectados = extraerProductos(texto);
+        totalDetectado = buscarTotal(texto);
 
-        mostrarResultados(productos, total);
+        // Eliminar indicador de procesamiento
+        const procesando = document.getElementById('procesando');
+        if (procesando) procesando.remove();
 
-        progreso.style.display = 'none';
-        resultados.style.display = 'block';
+        if (productosDetectados.length > 0) {
+            mostrarProductos();
+        } else {
+            agregarMensaje('bot', 'No pude detectar productos en la foto. Intenta con otra imagen más clara o escribe los datos manualmente.');
+            mostrarOpciones(['Ayuda', 'Empezar']);
+        }
 
     } catch (error) {
         console.error('Error:', error);
-        progresoTexto.textContent = 'Error al procesar. Intenta de nuevo.';
-        barra.style.width = '0%';
+        const procesando = document.getElementById('procesando');
+        if (procesando) procesando.remove();
+        agregarMensaje('bot', 'Hubo un error al procesar la imagen. Intenta de nuevo.');
+        mostrarOpciones(['Ayuda', 'Empezar']);
     }
 }
 
@@ -106,23 +209,67 @@ function buscarTotal(texto) {
     return 0;
 }
 
-function mostrarResultados(productos, total) {
-    const lista = document.getElementById('listaProductos');
-    const totalDiv = document.getElementById('total');
-
-    if (productos.length === 0) {
-        lista.innerHTML = '<p style="color: #666; text-align: center;">No se detectaron productos</p>';
-    } else {
-        lista.innerHTML = productos.map(p => `
-            <div class="producto">
-                <span class="producto-nombre">${p.nombre}</span>
+function mostrarProductos() {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'mensaje mensaje-bot mensaje-productos';
+    
+    let html = '<strong>Productos detectados:</strong><br>';
+    
+    productosDetectados.forEach((p, i) => {
+        html += `
+            <div class="producto-item">
+                <span class="producto-nombre">${i + 1}. ${p.nombre}</span>
                 <span class="producto-precio">$${p.precio.toFixed(2)}</span>
             </div>
-        `).join('');
-    }
-
-    totalDiv.innerHTML = `
-        <span id="total-label">TOTAL</span>
-        <span id="total-valor">$${total.toFixed(2)}</span>
+        `;
+    });
+    
+    html += `
+        <div class="total-item">
+            <span>TOTAL</span>
+            <span>$${totalDetectado.toFixed(2)}</span>
+        </div>
     `;
+    
+    div.innerHTML = html;
+    chat.appendChild(div);
+    
+    setTimeout(() => {
+        agregarMensaje('bot', '¿Es correcto? Puedes guardarlo o hacer cambios.');
+        mostrarOpciones(['Guardar', 'Otro ticket', 'Cancelar']);
+    }, 500);
+    
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function guardarGasto() {
+    // Aquí se guardaría en localStorage o una base de datos
+    const gasto = {
+        id: Date.now(),
+        productos: productosDetectados,
+        total: totalDetectado,
+        fecha: new Date().toISOString()
+    };
+    
+    // Guardar en localStorage
+    let gastos = JSON.parse(localStorage.getItem('gastos')) || [];
+    gastos.push(gasto);
+    localStorage.setItem('gastos', JSON.stringify(gastos));
+    
+    agregarMensaje('bot', 'Gasto guardado correctamente! ¿Quieres registrar otro ticket?');
+    mostrarOpciones(['Otro ticket', 'Ver gastos']);
+    
+    productosDetectados = null;
+    totalDetectado = 0;
+}
+
+function procesarCategoria(texto) {
+    agregarMensaje('bot', `Entendido, lo registraré como "${texto}".`);
+    estado = 'inicio';
+}
+
+function procesarNombre(texto) {
+    agregarMensaje('bot', `Perfecto, registraré "${texto}".`);
+    estado = 'inicio';
 }

@@ -3,37 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner de Tickets</title>
+    <title>Asistente de Gastos</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Scanner de Tickets</h1>
-            <p>Toma una foto y extrae los productos</p>
+            <h1>Asistente de Gastos</h1>
+            <p>Tu ayudante inteligente para registrar gastos</p>
         </header>
 
-        <div class="card">
-            <input type="file" id="fotoInput" accept="image/*" capture="environment" style="display: none;">
-            <button class="btn-camara" onclick="document.getElementById('fotoInput').click()">
-                Tomar Foto
-            </button>
+        <div class="chat-container">
+            <div id="chat" class="chat"></div>
             
-            <div id="preview"></div>
-            
-            <div id="progreso" style="display: none;">
-                <p id="progresoTexto">Procesando...</p>
-                <div class="barra-progreso">
-                    <div id="barra"></div>
-                </div>
+            <div class="input-area">
+                <input type="file" id="fotoInput" accept="image/*" capture="environment" style="display: none;">
+                <button class="btn-foto" onclick="document.getElementById('fotoInput').click()">
+                    Tomar Foto
+                </button>
+                <input type="text" id="mensaje" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
+                <button class="btn-enviar" onclick="enviarMensaje()">Enviar</button>
             </div>
-        </div>
-
-        <div class="card" id="resultados" style="display: none;">
-            <h2>Productos Detectados</h2>
-            <div id="listaProductos"></div>
-            <div id="total"></div>
         </div>
     </div>
 
