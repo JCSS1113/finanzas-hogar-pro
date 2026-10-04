@@ -3,28 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asistente de Gastos</title>
+    <title>Registro de Gastos</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Asistente de Gastos</h1>
-            <p>Tu ayudante inteligente para registrar gastos</p>
+            <h1>Registro de Gastos</h1>
+            <p>Registra tus compras rápidamente</p>
         </header>
 
-        <div class="chat-container">
-            <div id="chat" class="chat"></div>
+        <div class="card">
+            <h2>Nueva Compra</h2>
             
-            <div class="input-area">
-                <input type="file" id="fotoInput" accept="image/*" capture="environment" style="display: none;">
-                <button class="btn-foto" onclick="document.getElementById('fotoInput').click()">
-                    Tomar Foto
-                </button>
-                <input type="text" id="mensaje" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
-                <button class="btn-enviar" onclick="enviarMensaje()">Enviar</button>
+            <div class="form-group">
+                <label>Nombre del producto</label>
+                <input type="text" id="nombreProducto" placeholder="Ej: Leche">
             </div>
+            
+            <div class="form-group">
+                <label>Precio</label>
+                <input type="number" id="precioProducto" step="0.01" min="0.01" placeholder="0.00">
+            </div>
+            
+            <div class="form-group">
+                <label>Categoría</label>
+                <select id="categoriaProducto">
+                    <option value="alimentacion">Alimentación</option>
+                    <option value="vivienda">Vivienda</option>
+                    <option value="servicios">Servicios</option>
+                    <option value="transporte">Transporte</option>
+                    <option value="salud">Salud</option>
+                    <option value="educacion">Educación</option>
+                    <option value="ocio">Ocio</option>
+                    <option value="ropa">Ropa</option>
+                    <option value="aseo">Aseo</option>
+                    <option value="otros">Otros</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Tienda (opcional)</label>
+                <input type="text" id="tienda" placeholder="Ej: Mercadona">
+            </div>
+            
+            <button class="btn-agregar" onclick="agregarProducto()">Agregar Producto</button>
+        </div>
+
+        <div class="card" id="listaCard" style="display: none;">
+            <h2>Productos de esta compra</h2>
+            <div id="listaProductos"></div>
+            <div id="totalCompra"></div>
+            <button class="btn-guardar" onclick="guardarCompra()">Guardar Compra</button>
+            <button class="btn-limpiar" onclick="limpiarLista()">Limpiar</button>
+        </div>
+
+        <div class="card" id="historialCard" style="display: none;">
+            <h2>Historial de Compras</h2>
+            <div id="historial"></div>
         </div>
     </div>
 
