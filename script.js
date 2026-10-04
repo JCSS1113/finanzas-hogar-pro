@@ -1,148 +1,189 @@
-let productosActuales = [];
-let compras = JSON.parse(localStorage.getItem('compras')) || [];
+// Configuración de OCR.space (API gratuita)
+const OCR_API_KEY = 'K88975894788957'; // API key gratuita de OCR.space
 
-function agregarProducto() {
-    const nombre = document.getElementById('nombreProducto').value.trim();
-    const precio = parseFloat(document.getElementById('precioProducto').value);
-    const categoria = document.getElementById('categoriaProducto').value;
-    const tienda = document.getElementById('tienda').value.trim();
+document.getElementById('fotoInput').addEventListener('change', function(e) {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
 
-    if (!nombre || !precio || precio <= 0) {
-        alert('Ingresa un nombre y precio válidos');
-        return;
-    }
-
-    productosActuales.push({
-        nombre: nombre,
-        precio: precio,
-        categoria: categoria,
-        tienda: tienda
-    });
-
-    // Limpiar campos
-    document.getElementById('nombreProducto').value = '';
-    document.getElementById('precioProducto').value = '';
-    document.getElementById('tienda').value = '';
-
-    mostrarListaProductos();
-}
-
-function mostrarListaProductos() {
-    const listaCard = document.getElementById('listaCard');
-    const lista = document.getElementById('listaProductos');
-    const totalDiv = document.getElementById('totalCompra');
-
-    if (productosActuales.length === 0) {
-        listaCard.style.display = 'none';
-        return;
-    }
-
-    listaCard.style.display = 'block';
-
-    lista.innerHTML = productosActuales.map((p, i) => `
-        <div class="producto-item">
-            <div class="producto-info">
-                <div class="producto-nombre">${p.nombre}</div>
-                <div class="producto-detalle">${getCategoriaNombre(p.categoria)}${p.tienda ? ' - ' + p.tienda : ''}</div>
-            </div>
-            <div>
-                <span class="producto-precio">$${p.precio.toFixed(2)}</span>
-                <button class="btn-eliminar" onclick="eliminarProducto(${i})">X</button>
-            </div>
-        </div>
-    `).join('');
-
-    const total = productosActuales.reduce((sum, p) => sum + p.precio, 0);
-    totalDiv.innerHTML = `
-        <div class="total-item">
-            <span class="total-label">TOTAL</span>
-            <span class="total-valor">$${total.toFixed(2)}</span>
-        </div>
-    `;
-}
-
-function eliminarProducto(index) {
-    productosActuales.splice(index, 1);
-    mostrarListaProductos();
-}
-
-function limpiarLista() {
-    productosActuales = [];
-    mostrarListaProductos();
-}
-
-function guardarCompra() {
-    if (productosActuales.length === 0) {
-        alert('Agrega al menos un producto');
-        return;
-    }
-
-    const compra = {
-        id: Date.now(),
-        productos: [...productosActuales],
-        total: productosActuales.reduce((sum, p) => sum + p.precio, 0),
-        fecha: new Date().toISOString()
+    // Mostrar preview
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        document.getElementById('preview').innerHTML = `<img src="${event.target.result}" alt="Ticket">`;
+        procesarImagen(archivo);
     };
+    reader.readAsDataURL(archivo);
+});
 
-    compras.unshift(compra);
-    localStorage.setItem('compras', JSON.stringify(compras));
+async function procesarImagen(archivo) {
+    const progreso = document.getElementById('progreso');
+    const barra = document.getElementById('barra');
+    const progresoTexto = document.getElementById('progresoTexto');
+    const resultados = document.getElementById('resultados');
 
-    productosActuales = [];
-    mostrarListaProductos();
-    mostrarHistorial();
+    progreso.style.display = 'block';
+    resultados.style.display = 'none';
+    barra.style.width = '0%';
+    progresoTexto.textContent = 'Subiendo imagen...';
 
-    alert('Compra guardada!');
-}
+    try {
+        // Usar OCR.space API
+        const formData = new FormData();
+        formData.append('file', archivo);
+        formData.append('language', 'spa');
+        formData.append('isCreateSearchablePdf', 'false');
+        formData.append('isTable', 'true');
 
-function mostrarHistorial() {
-    const historialCard = document.getElementById('historialCard');
-    const historial = document.getElementById('historial');
+        barra.style.width = '30%';
+        progresoTexto.textContent = 'Analizando con OCR...';
 
-    if (compras.length === 0) {
-        historialCard.style.display = 'none';
-        return;
-    }
-
-    historialCard.style.display = 'block';
-
-    historial.innerHTML = compras.map(c => {
-        const fecha = new Date(c.fecha);
-        const fechaStr = fecha.toLocaleDateString('es-MX', { 
-            day: 'numeric', 
-            month: 'short', 
-            hour: '2-digit', 
-            minute: '2-digit' 
+        const response = await fetch('https://api.ocr.space/parse/image', {
+            method: 'POST',
+            headers: {
+                'apikey': OCR_API_KEY,
+            },
+            body: formData
         });
 
-        return `
-            <div class="compra-item">
-                <div class="compra-header">
-                    <span>${fechaStr}</span>
-                    <span class="compra-total">$${c.total.toFixed(2)}</span>
-                </div>
-                <div class="compra-productos">
-                    ${c.productos.map(p => `<div>• ${p.nombre} - $${p.precio.toFixed(2)}</div>`).join('')}
-                </div>
-            </div>
-        `;
-    }).join('');
+        barra.style.width = '70%';
+        progresoTexto.textContent = 'Procesando resultados...';
+
+        const data = await response.json();
+
+        if (data.ParsedResults && data.ParsedResults.length > 0) {
+            const texto = data.ParsedResults[0].ParsedText;
+            const productos = extraerProductos(texto);
+            const total = buscarTotal(texto);
+
+            mostrarResultados(productos, total);
+        } else {
+            alert('No se pudo leer el ticket. Intenta con otra foto más clara.');
+        }
+
+        barra.style.width = '100%';
+        progresoTexto.textContent = 'Completado!';
+        progreso.style.display = 'none';
+        resultados.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error:', error);
+        progresoTexto.textContent = 'Error al procesar. Intenta de nuevo.';
+        barra.style.width = '0%';
+    }
 }
 
-function getCategoriaNombre(cat) {
-    const categorias = {
-        alimentacion: 'Alimentación',
-        vivienda: 'Vivienda',
-        servicios: 'Servicios',
-        transporte: 'Transporte',
-        salud: 'Salud',
-        educacion: 'Educación',
-        ocio: 'Ocio',
-        ropa: 'Ropa',
-        aseo: 'Aseo',
-        otros: 'Otros'
-    };
-    return categorias[cat] || cat;
+function extraerProductos(texto) {
+    const lineas = texto.split('\n').filter(l => l.trim());
+    const productos = [];
+
+    // Palabras clave para identificar líneas que NO son productos
+    const palabrasExcluir = [
+        'total', 'subtotal', 'importe', 'cambio', 'efectivo', 'tarjeta',
+        'iva', 'descuento', 'ticket', 'factura', 'caja', 'cajero',
+        'fecha', 'hora', 'direccion', 'telefono', 'cif', 'nif',
+        'codigo', 'barras', 'operacion', 'autorizacion', 'recibo',
+        'gracias', 'vuelva', 'proxima', 'cliente', 'proveedor',
+        'base', 'imponible', 'tipo', 'documento', 'numero', 'serie',
+        'establecimiento', 'comercial', 'sociedad', 'domicilio'
+    ];
+
+    for (const linea of lineas) {
+        const lineaLimpia = linea.trim();
+        if (lineaLimpia.length < 3) continue;
+
+        // Verificar si la línea contiene palabras excluidas
+        const lineaLower = lineaLimpia.toLowerCase();
+        const esExcluida = palabrasExcluir.some(palabra => lineaLower.includes(palabra));
+        if (esExcluida) continue;
+
+        // Buscar precio al final de la línea
+        const match = lineaLimpia.match(/(\d+[.,]\d{2})\s*€?$/);
+        if (match) {
+            const precio = parseFloat(match[1].replace(',', '.'));
+            const nombre = lineaLimpia.replace(match[0], '').trim();
+
+            // Validar que el nombre sea razonable
+            if (nombre.length > 2 && nombre.length < 100 && precio > 0 && precio < 10000) {
+                // Determinar si el dato es confiable
+                const esConfiable = validarProducto(nombre, precio);
+                
+                productos.push({
+                    nombre: nombre,
+                    precio: precio,
+                    confiable: esConfiable
+                });
+            }
+        }
+    }
+
+    return productos.slice(0, 50);
 }
 
-// Cargar historial al iniciar
-mostrarHistorial();
+function validarProducto(nombre, precio) {
+    // Un producto es confiable si:
+    // 1. El nombre tiene al menos 3 caracteres
+    // 2. El precio es razonable (entre 0.01 y 1000)
+    // 3. El nombre no es solo números
+    // 4. El nombre no contiene solo caracteres especiales
+    
+    if (nombre.length < 3) return false;
+    if (precio < 0.01 || precio > 1000) return false;
+    if (/^\d+$/.test(nombre)) return false;
+    if (/^[^\w\s]+$/.test(nombre)) return false;
+    
+    return true;
+}
+
+function buscarTotal(texto) {
+    const patrones = [
+        /total[:\s]*(\d+[.,]\d{2})/i,
+        /importe[:\s]*(\d+[.,]\d{2})/i,
+        /a\s*pagar[:\s]*(\d+[.,]\d{2})/i,
+    ];
+
+    for (const patron of patrones) {
+        const match = texto.match(patron);
+        if (match) {
+            return parseFloat(match[1].replace(',', '.'));
+        }
+    }
+
+    // Buscar último número con decimales
+    const lineas = texto.split('\n');
+    for (let i = lineas.length - 1; i >= 0; i--) {
+        const match = lineas[i].match(/(\d+[.,]\d{2})/);
+        if (match) {
+            const valor = parseFloat(match[1].replace(',', '.'));
+            if (valor > 0 && valor < 10000) {
+                return valor;
+            }
+        }
+    }
+
+    return 0;
+}
+
+function mostrarResultados(productos, total) {
+    const lista = document.getElementById('listaProductos');
+    const totalDiv = document.getElementById('total');
+
+    if (productos.length === 0) {
+        lista.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">No se detectaron productos</td></tr>';
+    } else {
+        lista.innerHTML = productos.map(p => `
+            <tr>
+                <td>${p.nombre}</td>
+                <td class="precio">$${p.precio.toFixed(2)}</td>
+                <td class="estado">
+                    ${p.confiable ? 
+                        '<span class="estado-ok">OK</span>' : 
+                        '<span class="estado-revisar">Revisar</span>'}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    totalDiv.innerHTML = `
+        <span id="total-label">TOTAL</span>
+        <span id="total-valor">$${total.toFixed(2)}</span>
+    `;
+}
